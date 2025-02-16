@@ -18,7 +18,7 @@ app.get("/api/scrape", async (req, res) => {
     return res.status(400).json({ error: "Missing 'url' query parameter" });
   }
 
-  const useJson = req.query.json === "1";
+  const useJson = req.query.json === "1" || req.query.json === "true";
 
   let browser;
   try {
