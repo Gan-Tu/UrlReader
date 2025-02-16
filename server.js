@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 8080;
 
 app.get("/", (req, res) => {
   res.send(
-    "Welcome! Please use /api/scrape?url=<your_url>&json=[1|0]&formatTables=[1|0] to convert a webpage."
+    "Welcome! Please use /api/scrape?url=<your_url>&json=[1|0]&formatTables=[1|0]&stripTables=[1|0] to convert a webpage."
   );
 });
 
@@ -54,8 +54,10 @@ app.get("/api/scrape", async (req, res) => {
 
     // Fetch only from the main content section
     const formatTables = req.query.formatTables !== "0";
+    const stripTables =
+      req.query.stripTables === "1" || req.query.stripTables === "true";
     await page.evaluate(
-      ([formatTables]) => {
+      ([formatTables, stripTables]) => {
         const mainContent =
           document.querySelector("main") ||
           document.querySelector("#main-content") ||
@@ -75,8 +77,27 @@ app.get("/api/scrape", async (req, res) => {
         // Format <dl> elements
         const dlElements = document.querySelectorAll("dl");
         dlElements.forEach((dl) => {
+          if (stripTables) {
+            dl.remove();
+            return;
+          }
+
           const dtElements = dl.querySelectorAll("dt");
           const ddElements = dl.querySelectorAll("dd");
+
+          // Convert any anchor links to text in dt and dd elements
+          dtElements.forEach((dt) => {
+            const anchors = dt.querySelectorAll("a");
+            anchors.forEach((a) => {
+              a.replaceWith(a.textContent);
+            });
+          });
+          ddElements.forEach((dd) => {
+            const anchors = dd.querySelectorAll("a");
+            anchors.forEach((a) => {
+              a.replaceWith(a.textContent);
+            });
+          });
 
           if (
             dtElements.length !== ddElements.length ||
@@ -139,8 +160,108 @@ app.get("/api/scrape", async (req, res) => {
             dl.replaceWith(newElement);
           }
         });
+
+        // Format HTML tables
+        const tableElements = document.querySelectorAll("table");
+        tableElements.forEach((table) => {
+          if (stripTables) {
+            table.remove();
+            return;
+          }
+
+          const rows = table.querySelectorAll("tr");
+          if (rows.length === 0) return;
+
+          // Convert any anchor links to text in table cells
+          table.querySelectorAll("td, th").forEach((cell) => {
+            const anchors = cell.querySelectorAll("a");
+            anchors.forEach((a) => {
+              a.replaceWith(a.textContent);
+            });
+          });
+
+          // Find header cells - first look for th elements, if none found use first row
+          const thCells = table.querySelectorAll("th");
+          const headerCells =
+            thCells.length > 0 ? thCells : rows[0].querySelectorAll("td");
+
+          // Determine which rows are data rows based on whether we used th elements
+          const dataRows =
+            thCells.length > 0 ? Array.from(rows) : Array.from(rows).slice(1);
+
+          if (formatTables) {
+            // Calculate max lengths for each column
+            const columnLengths = Array(headerCells.length).fill(0);
+
+            // Get header lengths
+            headerCells.forEach((cell, i) => {
+              columnLengths[i] = Math.max(
+                columnLengths[i],
+                cell.textContent.trim().length
+              );
+            });
+
+            // Get data lengths
+            dataRows.forEach((row) => {
+              const cells = row.querySelectorAll("td, th");
+              cells.forEach((cell, i) => {
+                columnLengths[i] = Math.max(
+                  columnLengths[i],
+                  cell.textContent.trim().length
+                );
+              });
+            });
+
+            // Create markdown table
+            const formattedHeaderCells = Array.from(headerCells).map(
+              (cell, i) => cell.textContent.trim().padEnd(columnLengths[i], " ")
+            );
+            const markdownHeader = `| ${formattedHeaderCells.join(" | ")} |`;
+            const separator = `| ${columnLengths
+              .map((len) => "-".repeat(len))
+              .join(" | ")} |`;
+
+            const markdownRows = dataRows.map((row) => {
+              const cells = Array.from(row.querySelectorAll("td, th"));
+              const paddedCells = cells.map((cell, i) =>
+                cell.textContent.trim().padEnd(columnLengths[i], " ")
+              );
+              return `| ${paddedCells.join(" | ")} |`;
+            });
+
+            const markdownTable = `${markdownHeader}\n${separator}\n${markdownRows.join(
+              "\n"
+            )}`;
+
+            const newElement = document.createElement("pre");
+            newElement.textContent = markdownTable;
+            table.replaceWith(newElement);
+          } else {
+            // Convert to paragraph format
+            const headers = Array.from(headerCells).map((cell) =>
+              cell.textContent.trim()
+            );
+            const paragraphs = dataRows.map((row) => {
+              const cells = Array.from(row.querySelectorAll("td, th"));
+              return headers
+                .map(
+                  (header, i) =>
+                    `${header}: ${cells[i]?.textContent.trim() || "N/A"}`
+                )
+                .join("; ");
+            });
+
+            const newElement = document.createElement("div");
+            paragraphs.forEach((text) => {
+              const p = document.createElement("p");
+              p.textContent = text;
+              newElement.appendChild(p);
+            });
+            table.replaceWith(newElement);
+          }
+        });
       },
-      [formatTables]
+      [formatTables, stripTables]
     );
 
     const htmlContent = await page.content();
