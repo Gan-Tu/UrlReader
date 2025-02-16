@@ -101,7 +101,8 @@ app.get("/api/scrape", async (req, res) => {
               );
             }
 
-            const tableRows = dtElements.map((dt, i) => {
+            // Convert NodeList to Array before using map
+            const tableRows = Array.from(dtElements).map((dt, i) => {
               const header = dt.textContent.trim().padEnd(maxHeaderLength, " ");
               const value = ddElements[i].textContent
                 .trim()
@@ -123,7 +124,8 @@ app.get("/api/scrape", async (req, res) => {
             newElement.textContent = markdownTable;
             dl.replaceWith(newElement);
           } else {
-            const newText = dtElements
+            // Convert NodeList to Array here as well
+            const newText = Array.from(dtElements)
               .map(
                 (dt, i) =>
                   `${dt.textContent.trim()}: ${ddElements[
@@ -163,14 +165,7 @@ app.get("/api/scrape", async (req, res) => {
       }
     });
 
-    let markdown = turndownService.turndown(htmlContent);
-    if (markdown) {
-      markdown = markdown
-        .trim()
-        .split("\n")
-        .map((line) => line.trimStart())
-        .join("\n");
-    }
+    let markdown = turndownService.turndown(htmlContent)?.trim();
 
     if (useJson) {
       return res.json({
