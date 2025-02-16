@@ -64,11 +64,11 @@ app.get("/api/scrape", async (req, res) => {
           document.body.innerHTML = ""; // Clear the entire body
           document.body.appendChild(mainContent); // Append the main content
           document
-            .querySelectorAll("script, style, noscript, nav, footer")
+            .querySelectorAll("script, style, noscript, nav, header, footer")
             .forEach((el) => el.remove());
         } else {
           document
-            .querySelectorAll("script, style, noscript, nav, footer")
+            .querySelectorAll("script, style, noscript, nav, header, footer")
             .forEach((el) => el.remove());
         }
 
