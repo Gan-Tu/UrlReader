@@ -2,38 +2,44 @@ const express = require("express");
 const { chromium } = require("playwright");
 const TurndownService = require("turndown");
 
-// Create an Express app
 const app = express();
-
-// For Cloud Run, listen on port 8080 by default
 const PORT = process.env.PORT || 8080;
 
-// Default route for "/"
 app.get("/", (req, res) => {
   res.send(
-    "Welcome! Please use /api/scrape?url=<your_url> to convert a webpage to Markdown."
+    "Welcome! Please use /api/scrape?url=<your_url>&json=[1|0]&formatTables=[1|0] to convert a webpage."
   );
 });
 
-// Define the /api/scrape route
 app.get("/api/scrape", async (req, res) => {
   const urlToScrape = req.query.url;
 
-  // Check if the query parameter is provided
   if (!urlToScrape) {
-    return res.status(400).json({
-      error: "Missing 'url' query parameter"
-    });
+    return res.status(400).json({ error: "Missing 'url' query parameter" });
   }
+
+  const useJson = req.query.json === "1";
 
   let browser;
   try {
-    // Launch headless Chromium
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    const response = await page.goto(urlToScrape, { waitUntil: "networkidle" });
 
-    // Navigate and wait for network to be idle
-    await page.goto(urlToScrape, { waitUntil: "networkidle" });
+    if (!response.ok()) {
+      return res
+        .status(response.status())
+        .json({ error: `Failed to load URL: ${response.status()}` });
+    }
+
+    const publishedTime = await page.evaluate(() => {
+      const dateElement =
+        document.querySelector('meta[property="article:published_time"]') ||
+        document.querySelector('meta[name="dcterms.created"]');
+      return dateElement ? dateElement.getAttribute("content") : null;
+    });
+
+    const title = await page.evaluate(() => document.title);
 
     if (req.query.waitForTimeoutSeconds) {
       const waitForTimeoutSeconds = Number(req.query.waitForTimeoutSeconds);
@@ -46,43 +52,143 @@ app.get("/api/scrape", async (req, res) => {
       }
     }
 
-    // Remove script, style, noscript tags from the DOM
-    await page.evaluate(() => {
-      document
-        .querySelectorAll("script, style, noscript")
-        .forEach((el) => el.remove());
-    });
+    // Fetch only from the main content section
+    const formatTables = req.query.formatTables !== "0";
+    await page.evaluate(
+      ([formatTables]) => {
+        const mainContent =
+          document.querySelector("main") ||
+          document.querySelector("#main-content") ||
+          document.body; // Adapt this selector
+        if (mainContent) {
+          document.body.innerHTML = ""; // Clear the entire body
+          document.body.appendChild(mainContent); // Append the main content
+          document
+            .querySelectorAll("script, style, noscript, nav, footer")
+            .forEach((el) => el.remove());
+        } else {
+          document
+            .querySelectorAll("script, style, noscript, nav, footer")
+            .forEach((el) => el.remove());
+        }
 
-    // Grab the rendered HTML
+        // Format <dl> elements
+        const dlElements = document.querySelectorAll("dl");
+        dlElements.forEach((dl) => {
+          const dtElements = dl.querySelectorAll("dt");
+          const ddElements = dl.querySelectorAll("dd");
+
+          if (
+            dtElements.length !== ddElements.length ||
+            dtElements.length === 0
+          ) {
+            return;
+          }
+
+          if (formatTables) {
+            let maxHeaderLength = 0;
+            let maxValueLength = 0;
+
+            // Calculate max lengths for proper alignment
+            for (let i = 0; i < dtElements.length; i++) {
+              maxHeaderLength = Math.max(
+                maxHeaderLength,
+                dtElements[i].textContent.trim().length
+              );
+              maxValueLength = Math.max(
+                maxValueLength,
+                ddElements[i].textContent.trim().length
+              );
+            }
+
+            const tableRows = dtElements.map((dt, i) => {
+              const header = dt.textContent.trim().padEnd(maxHeaderLength, " ");
+              const value = ddElements[i].textContent
+                .trim()
+                .padEnd(maxValueLength, " ");
+              return `| ${header} | ${value} |`;
+            });
+
+            const headerSeparator = `| ${"-".repeat(
+              maxHeaderLength
+            )} | ${"-".repeat(maxValueLength)} |`;
+            const tableHeader = `| Header${" ".repeat(
+              maxHeaderLength - 6
+            )} | Value${" ".repeat(maxValueLength - 5)} |`;
+            const markdownTable = `${tableHeader}\n${headerSeparator}\n${tableRows.join(
+              "\n"
+            )}`;
+
+            const newElement = document.createElement("pre");
+            newElement.textContent = markdownTable;
+            dl.replaceWith(newElement);
+          } else {
+            const newText = dtElements
+              .map(
+                (dt, i) =>
+                  `${dt.textContent.trim()}: ${ddElements[
+                    i
+                  ].textContent.trim()}`
+              )
+              .join("; ");
+
+            const newElement = document.createElement("p");
+            newElement.textContent = newText;
+            dl.replaceWith(newElement);
+          }
+        });
+      },
+      [formatTables]
+    );
+
     const htmlContent = await page.content();
 
-    // Create Turndown service
     const turndownService = new TurndownService({
       headingStyle: "atx",
       bulletListMarker: "-",
       codeBlockStyle: "fenced"
     });
 
-    // Custom rule for images
     turndownService.addRule("images", {
       filter: "img",
       replacement: (_content, node) => {
         const src = node.getAttribute("src") || "";
         const alt = node.getAttribute("alt") || "";
-        return `![${alt}](${src})`;
+        if (alt) {
+          // Only include images with alt text
+          return `![${alt}](${src})`;
+        } else {
+          return ""; // or null, if you prefer not to include the image at all
+        }
       }
     });
 
-    // Convert HTML to Markdown
-    const markdown = turndownService.turndown(htmlContent);
+    let markdown = turndownService.turndown(htmlContent);
+    if (markdown) {
+      markdown = markdown
+        .trim()
+        .split("\n")
+        .map((line) => line.trimStart())
+        .join("\n");
+    }
 
-    // Return JSON
-    return res.json({ markdown });
+    if (useJson) {
+      return res.json({
+        title: title.trim(),
+        urlSource: urlToScrape,
+        publishedTime: publishedTime,
+        markdownContent: markdown
+      });
+    } else {
+      res.setHeader("Content-Type", "text/plain");
+      const textOutput = `# Title: ${title.trim()}\n\n# URL Source: ${urlToScrape}\n\n# Published Time: ${
+        publishedTime || "N/A"
+      }\n\n# Markdown Content:\n\n${markdown}`;
+      return res.send(textOutput);
+    }
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      error: "Failed to convert URL to Markdown"
-    });
+    console.error("Scraping error:", error);
+    return res.status(500).json({ error: "Failed to convert URL" });
   } finally {
     if (browser) {
       await browser.close();
@@ -90,7 +196,6 @@ app.get("/api/scrape", async (req, res) => {
   }
 });
 
-// Start the server
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
