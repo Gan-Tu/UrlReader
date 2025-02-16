@@ -8,6 +8,13 @@ const app = express();
 // For Cloud Run, listen on port 8080 by default
 const PORT = process.env.PORT || 8080;
 
+// Default route for "/"
+app.get("/", (req, res) => {
+  res.send(
+    "Welcome! Please use /api/scrape?url=<your_url> to convert a webpage to Markdown."
+  );
+});
+
 // Define the /api/scrape route
 app.get("/api/scrape", async (req, res) => {
   const urlToScrape = req.query.url;
@@ -15,7 +22,7 @@ app.get("/api/scrape", async (req, res) => {
   // Check if the query parameter is provided
   if (!urlToScrape) {
     return res.status(400).json({
-      error: "Missing 'url' query parameter",
+      error: "Missing 'url' query parameter"
     });
   }
 
@@ -28,9 +35,22 @@ app.get("/api/scrape", async (req, res) => {
     // Navigate and wait for network to be idle
     await page.goto(urlToScrape, { waitUntil: "networkidle" });
 
+    if (req.query.waitForTimeoutSeconds) {
+      const waitForTimeoutSeconds = Number(req.query.waitForTimeoutSeconds);
+      if (
+        !isNaN(waitForTimeoutSeconds) &&
+        waitForTimeoutSeconds > 0 &&
+        Number.isInteger(waitForTimeoutSeconds)
+      ) {
+        await page.waitForTimeout(waitForTimeoutSeconds * 1000);
+      }
+    }
+
     // Remove script, style, noscript tags from the DOM
     await page.evaluate(() => {
-      document.querySelectorAll("script, style, noscript").forEach((el) => el.remove());
+      document
+        .querySelectorAll("script, style, noscript")
+        .forEach((el) => el.remove());
     });
 
     // Grab the rendered HTML
@@ -40,7 +60,7 @@ app.get("/api/scrape", async (req, res) => {
     const turndownService = new TurndownService({
       headingStyle: "atx",
       bulletListMarker: "-",
-      codeBlockStyle: "fenced",
+      codeBlockStyle: "fenced"
     });
 
     // Custom rule for images
@@ -50,7 +70,7 @@ app.get("/api/scrape", async (req, res) => {
         const src = node.getAttribute("src") || "";
         const alt = node.getAttribute("alt") || "";
         return `![${alt}](${src})`;
-      },
+      }
     });
 
     // Convert HTML to Markdown
@@ -61,7 +81,7 @@ app.get("/api/scrape", async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      error: "Failed to convert URL to Markdown",
+      error: "Failed to convert URL to Markdown"
     });
   } finally {
     if (browser) {
