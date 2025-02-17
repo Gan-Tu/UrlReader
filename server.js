@@ -66,18 +66,57 @@ app.get("/api/scrape", async (req, res) => {
         const mainContent =
           document.querySelector("main") ||
           document.querySelector("#main-content") ||
+          document.querySelector("#main-container") ||
+          document.querySelector("article") ||
+          document.querySelector("#article") ||
+          document.querySelector(".article") ||
+          document.querySelector(".content") ||
+          document.querySelector("#content") ||
           document.body; // Adapt this selector
-        if (mainContent) {
-          document.body.innerHTML = ""; // Clear the entire body
-          document.body.appendChild(mainContent); // Append the main content
-          document
-            .querySelectorAll("script, style, noscript, nav, header, footer")
-            .forEach((el) => el.remove());
-        } else {
-          document
-            .querySelectorAll("script, style, noscript, nav, header, footer")
-            .forEach((el) => el.remove());
-        }
+
+        // Create a clone of the main content to avoid hierarchy issues
+        const mainContentClone = mainContent.cloneNode(true);
+
+        // Clear the body and append the clone
+        document.body.innerHTML = "";
+        document.body.appendChild(mainContentClone);
+
+        // Remove unwanted elements
+        document
+          .querySelectorAll(
+            "script, style, noscript, nav, header, footer, form"
+          )
+          .forEach((el) => el.remove());
+
+        // Remove unwanted elements
+        const elementsToRemove = [
+          "breadcrumbs",
+          "cookies",
+          "popup",
+          "sidebar",
+          "modal",
+          "menu-container",
+          "dropdown-menu",
+          "header-dropdown"
+        ];
+        Array.from(document.getElementsByTagName("*")).forEach((element) => {
+          const id = element.id?.toLowerCase() || "";
+          const classes = (
+            typeof element.className === "string" ? element.className : ""
+          ).toLowerCase();
+          const tagName = element.tagName.toLowerCase();
+          if (
+            elementsToRemove.some(
+              (term) =>
+                id.includes(term) ||
+                classes.includes(term) ||
+                tagName.includes(term)
+            )
+          ) {
+            element.remove();
+          }
+        });
+
         if (stripImages) {
           document.querySelectorAll("img").forEach((img) => img.remove());
           document
@@ -341,5 +380,5 @@ app.get("/api/scrape", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
