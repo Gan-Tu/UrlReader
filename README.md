@@ -10,7 +10,8 @@ It leverages Playwright for browser automation and Turndown for HTML to Markdown
 
 ## API Endpoint
 
-GET method at `/api/scrape`
+- GET method at `/api/scrape`
+- GET method at `/:url` will be redirected to `/api/scrape`
 
 ## Request Parameters
 

@@ -393,6 +393,14 @@ app.get("/api/scrape", async (req, res) => {
   }
 });
 
+app.get("/:url(*)", async (req, res) => {
+  const urlToScrape = decodeURIComponent(req.params.url);
+  if (!urlToScrape) {
+    return res.status(400).json({ error: "Missing URL parameter" });
+  }
+  res.redirect(`/api/scrape?url=${encodeURIComponent(urlToScrape)}`);
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
