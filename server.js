@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 8080;
 
 app.get("/", (req, res) => {
   res.send(
-    "Welcome! Please use /api/scrape?url=<your_url>&json=[1|0]&formatTables=[1|0]&stripTables=[1|0] to convert a webpage."
+    "Welcome! Please use /api/scrape?url=<your_url>&json=[1|0]&formatTables=[1|0]&stripTables=[1|0]&stripImages=[1|0]&stripLinks=[1|0] to convert a webpage."
   );
 });
 
@@ -56,8 +56,13 @@ app.get("/api/scrape", async (req, res) => {
     const formatTables = req.query.formatTables !== "0";
     const stripTables =
       req.query.stripTables === "1" || req.query.stripTables === "true";
+    const stripImages =
+      req.query.stripImages === "1" || req.query.stripImages === "true";
+    const stripLinks =
+      req.query.stripLinks === "1" || req.query.stripLinks === "true";
+
     await page.evaluate(
-      ([formatTables, stripTables]) => {
+      ([formatTables, stripTables, stripImages, stripLinks]) => {
         const mainContent =
           document.querySelector("main") ||
           document.querySelector("#main-content") ||
@@ -72,6 +77,16 @@ app.get("/api/scrape", async (req, res) => {
           document
             .querySelectorAll("script, style, noscript, nav, header, footer")
             .forEach((el) => el.remove());
+        }
+        if (stripImages) {
+          document.querySelectorAll("img").forEach((img) => img.remove());
+          document
+            .querySelectorAll("figure")
+            .forEach((figure) => figure.remove());
+        }
+
+        if (stripLinks) {
+          document.querySelectorAll("a").forEach((a) => a.remove());
         }
 
         // Format <dl> elements
@@ -261,7 +276,7 @@ app.get("/api/scrape", async (req, res) => {
           }
         });
       },
-      [formatTables, stripTables]
+      [formatTables, stripTables, stripImages, stripLinks]
     );
 
     const htmlContent = await page.content();
@@ -273,20 +288,33 @@ app.get("/api/scrape", async (req, res) => {
     });
 
     turndownService.addRule("images", {
-      filter: "img",
+      filter: ["img", "a"],
       replacement: (_content, node) => {
-        const src = node.getAttribute("src") || "";
-        const alt = node.getAttribute("alt") || "";
-        if (alt) {
-          // Only include images with alt text
-          return `![${alt}](${src})`;
+        if (node.nodeName === "A") {
+          const href = node.getAttribute("href") || "";
+          const text = node.textContent.trim().replace(/\s+/g, " ");
+          return text ? `[${text}](${href})` : "";
         } else {
-          return ""; // or null, if you prefer not to include the image at all
+          // img node
+          const src = node.getAttribute("src") || "";
+          const alt = node.getAttribute("alt") || "";
+          if (stripImages) {
+            return "";
+          } else if (alt) {
+            const cleanAlt = alt.trim().replace(/\s+/g, " ");
+            return `![${cleanAlt}](${src})`;
+          } else {
+            return "";
+          }
         }
       }
     });
 
-    let markdown = turndownService.turndown(htmlContent)?.trim();
+    let markdown = turndownService
+      .turndown(htmlContent)
+      ?.trim()
+      .replace(/\\\[|\\\]/g, "")
+      .replace(/\n{3,}/g, "\n\n");
 
     if (useJson) {
       return res.json({
