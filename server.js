@@ -24,7 +24,21 @@ app.get("/api/scrape", async (req, res) => {
   try {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
-    const response = await page.goto(urlToScrape, { waitUntil: "networkidle" });
+    let timeoutMiliSeconds = 3000;
+    if (req.query.waitForTimeoutSeconds) {
+      const waitForTimeoutSeconds = Number(req.query.waitForTimeoutSeconds);
+      if (
+        !isNaN(waitForTimeoutSeconds) &&
+        waitForTimeoutSeconds > 0 &&
+        Number.isInteger(waitForTimeoutSeconds)
+      ) {
+        timeoutMiliSeconds = waitForTimeoutSeconds * 1000;
+      }
+    }
+    const response = await page.goto(urlToScrape, {
+      timeout: timeoutMiliSeconds,
+      waitUntil: "domcontentloaded"
+    });
 
     if (!response.ok()) {
       return res
@@ -371,7 +385,7 @@ app.get("/api/scrape", async (req, res) => {
     }
   } catch (error) {
     console.error("Scraping error:", error);
-    return res.status(500).json({ error: "Failed to convert URL" });
+    return res.status(500).json({ error: `Internal error: ${error}` });
   } finally {
     if (browser) {
       await browser.close();
