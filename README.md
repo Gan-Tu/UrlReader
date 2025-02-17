@@ -43,9 +43,9 @@ The API will return appropriate HTTP status codes for errors. Possible errors in
 
 ## Dependencies
 
-- [Playwright](https://www.google.com/url?sa=E&source=gmail&q=https://playwright.dev/): For browser automation.
-- [Turndown](https://www.google.com/url?sa=E&source=gmail&q=https://github.com/mixmark/turndown): For HTML to Markdown conversion.
-- [Express](https://www.google.com/url?sa=E&source=gmail&q=https://expressjs.com/): For creating the API server.
+- [Playwright](https://playwright.dev/): For browser automation.
+- [Turndown](https://github.com/mixmark-io/turndown): For HTML to Markdown conversion.
+- [Express](https://expressjs.com/): For creating the API server.
 - ... other dependencies listed in `package.json`
 
 ## Contributing
