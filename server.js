@@ -107,7 +107,6 @@ app.get("/api/scrape", async (req, res) => {
           "breadcrumbs",
           "cookies",
           "popup",
-          "sidebar",
           "modal",
           "menu-container",
           "dropdown-menu",
@@ -366,7 +365,7 @@ app.get("/api/scrape", async (req, res) => {
     let markdown = turndownService
       .turndown(htmlContent)
       ?.trim()
-      .replace(/\\\[|\\\]/g, "")
+      .replace(/\\\[\|\\\]/g, "")
       .replace(/\n{3,}/g, "\n\n");
 
     if (useJson) {
