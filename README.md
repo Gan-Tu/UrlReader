@@ -18,11 +18,11 @@ It leverages Playwright for browser automation and Turndown for HTML to Markdown
 | Parameter               | Type           | Default | Description                                                                                                                                                         | Required |
 | ----------------------- | -------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | `url`                   | string         | -       | The URL of the website to convert                                                                                                                                   | Yes      |
-| `json`                  | boolean [1\|0] | false   | If true, the response will be in JSON format                                                                                                                        | No       |
-| `formatTables`          | boolean [1\|0] | true    | If true, parse tables in markdown syntax. Otherwise, return as strings                                                                                              | No       |
-| `stripTables`           | boolean [1\|0] | false   | If true, tables will be removed from the response                                                                                                                   | No       |
-| `stripImages`           | boolean [1\|0] | false   | If true, images will be removed from the response                                                                                                                   | No       |
-| `stripLinks`            | boolean [1\|0] | false   | If true, links will be removed from the response                                                                                                                    | No       |
+| `json`                  | boolean (1\|0) | false   | If true, the response will be in JSON format                                                                                                                        | No       |
+| `formatTables`          | boolean (1\|0) | true    | If true, parse tables in markdown syntax. Otherwise, return as strings                                                                                              | No       |
+| `stripTables`           | boolean (1\|0) | false   | If true, tables will be removed from the response                                                                                                                   | No       |
+| `stripImages`           | boolean (1\|0) | false   | If true, images will be removed from the response                                                                                                                   | No       |
+| `stripLinks`            | boolean (1\|0) | false   | If true, links will be removed from the response                                                                                                                    | No       |
 | `waitForTimeoutSeconds` | int            | 3       | If specified, the API will wait for the specified number of seconds before parsing the website content. This is useful for waiting for lazy loaded content to load. | No       |
 
 ## Response
