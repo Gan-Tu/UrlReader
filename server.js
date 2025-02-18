@@ -175,8 +175,8 @@ app.get("/api/scrape", async (req, res) => {
           }
 
           if (formatTables) {
-            let maxHeaderLength = 0;
-            let maxValueLength = 0;
+            let maxHeaderLength = 6;
+            let maxValueLength = 5;
 
             // Calculate max lengths for proper alignment
             for (let i = 0; i < dtElements.length; i++) {
