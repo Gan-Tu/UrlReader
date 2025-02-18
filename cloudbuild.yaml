@@ -16,5 +16,7 @@ steps:
     - 'us-central1-docker.pkg.dev/tugan-api-392915/cloudrun/urlreader/urlreader:$COMMIT_SHA'
     - '--region'
     - 'us-central1'
+    - '--memory'
+    - '2G'
 images:
 - 'us-central1-docker.pkg.dev/tugan-api-392915/cloudrun/urlreader/urlreader:$COMMIT_SHA'
